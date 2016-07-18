@@ -1,13 +1,37 @@
 # hp-wbem
-Powershell Cmdlets for Hewlett Packard Insight Management WBEM providers
+### Powershell Cmdlets for Hewlett Packard Insight Management WBEM providers
 
-Functions in this module:
-Get-HPArrayDisks
-Get-HPArrayControllers
-Get-HPiLOInformation
-Get-HPNetworkAdapters
-Get-HPPowerSupplies
-Get-HPSystemInformation
+#### Functions in this module
+* ##### Get-HPArrayDisks
 
-Usage: import-module hp-wbem.psm1
-Help: get-help Get-HPArrayDisks
+  Information about pysical disks attached to array controllers
+  
+* ##### Get-HPArrayControllers
+
+  Information about installed array controllers
+  
+* ##### Get-HPiLOInformation
+
+  Information about iLO interfaces in a system
+
+* ##### Get-HPNetworkAdapters
+
+  Information about activated network adapters in a system.
+
+* ##### Get-HPPowerSupplies
+
+  Information about installed power supplies
+
+* ##### Get-HPSystemInformation
+
+  Basic information about system such as product and serial number, amount and type of  CPU, RAM and power supplies
+
+#### Usage
+Import module in PowerShell:
+
+`Import-Module hp-wbem.psm1`
+
+#### Getting help
+The Cmdlets are documented so you can use the normal get-help command in Powershell after loading the module.
+
+`Get-Help Get-HPArrayDisks`
