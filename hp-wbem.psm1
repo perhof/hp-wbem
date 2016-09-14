@@ -7,6 +7,7 @@ Functions in this module:
 
 Get-HPArrayDisks
 Get-HPArrayControllers
+Get-HPArrayVolumes
 Get-HPiLOInformation
 Get-HPNetworkAdapters
 Get-HPPowerSupplies
@@ -126,9 +127,6 @@ function Get-HPArrayControllers
             $ArraySystems =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HPSA_ArraySystem
             ForEach ($ArraySys in $ArraySystems){
                 
-                #ArraySystem
-                #$sa = Get-WmiObject -ComputerName kst-kal -Namespace root\hpq -class HPSA_ArraySystem
-
                 #ArraySystemFirmware
                 $ArrayFW = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemFirmware")
 
@@ -185,6 +183,179 @@ function Get-HPArrayControllers
 
     } # end of ShouldProcess
 } # end function Get-HPArrayControllers
+
+
+
+function Get-HPArrayVolumes
+{
+    <#
+    .SYNOPSIS
+    Retrieves array storage volume information for HP servers.
+    
+    .DESCRIPTION
+    The Get-HPArrayVolumes function works through WMI and requires
+    that the HP Insight Management WBEM Providers are installed on
+    the server that is being quiered.
+    
+    .PARAMETER Computername
+    The HP server for which the array volumes should be listed.
+    This parameter is optional and if the parameter isn't specified
+    the command defaults to local machine.
+    First positional parameter.
+
+    .EXAMPLE
+    Get-HPArrayVolumes
+    Lists array volume information for the local machine
+
+    .EXAMPLE
+    Get-HPArrayVolumes SRV-HP-A
+    Lists array volume information for server SRV-HP-A
+
+    .EXAMPLE
+    "SRV-HP-A", "SRV-HP-B", "SRV-HP-C" | Get-HPArrayVolumes
+    Lists array volume information for three servers
+    
+    #>
+    [CmdletBinding(SupportsShouldProcess=$true)]
+    Param(
+    [Parameter(Mandatory=$false, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true, Position = 1)][string]$Computername=$env:computername
+    )
+
+    Process{
+
+        if ($pscmdlet.ShouldProcess("List array volumes on server " +$Computername)){
+            $ArraySystems =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HPSA_ArraySystem
+            ForEach ($ArraySys in $ArraySystems){
+                
+                #ArraySystemArrayController
+                $ArrayController = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemArrayController")
+                
+                #ArraySystemStorageVolume
+                $ArrayVolumes = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemStorageVolume")
+                # array controllers with no volumes return a null object instead of an empty collection. Breaks ForEach loop
+                if ($ArrayVolumes -eq $null){$ArrayVolumes = @()} 
+
+                ForEach ($ArrayVolume in $ArrayVolumes){
+                    $OutObject = New-Object System.Object
+                    $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                    $OutObject | Add-Member -type NoteProperty -name ControllerName -value $ArrayController.ElementName
+                    $OutObject | Add-Member -type NoteProperty -name OSDiskID -value $ArrayVolume.OSName
+                    $OutObject | Add-Member -type NoteProperty -name SizeInGigabytes -value ([math]::round(($ArrayVolume.BlockSize * $ArrayVolume.NumberOfBlocks) / 1000000000))
+                
+                    # Fault tolerance model
+                    Switch ($ArrayVolume.FaultTolerance) {
+                        1 {$FaultTolerance = "RAID 0";break}
+                        2 {$FaultTolerance = "RAID 1";break}
+                        3 {$FaultTolerance = "RAID 1+0";break}
+                        4 {$FaultTolerance = "RAID 4";break}
+                        5 {$FaultTolerance = "RAID 5";break}
+                        6 {$FaultTolerance = "RAID 51";break}
+                        7 {$FaultTolerance = "RAID 6";break}
+                        8 {$FaultTolerance = "RAID 50";break}
+                        9 {$FaultTolerance = "RAID 60";break}
+                        default {$FaultTolerance = "Unknown"}
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name FaultTolerance -value $FaultTolerance
+                    $OutObject | Add-Member -type NoteProperty -name StripeSizeKB -value ($ArrayVolume.StripeSize/1024)
+
+                    # Operational Status
+                    Switch ($ArrayVolume.OperationalStatus) {
+                        2 {
+                            $OperationalStatus = "OK"
+                            $ExtStatus = $null
+                            break
+                            }
+                        3 {
+                            $OperationalStatus = "Degraded"
+                            $ExtStatus = $ArrayVolume.OperationalStatus[1]
+                            break
+                            }
+                        6 {
+                            $OperationalStatus = "Failed"
+                            $ExtStatus = $ArrayVolume.OperationalStatus[1]
+                            break
+                            }
+                        default {
+                            $FaultTolerance = "Unknown"
+                            $ExtStatus = $null
+                            }
+                    } # end switch
+                    
+                    Switch ($ExtStatus) {
+                        $null {
+                            $StatusReason = $null
+                            break;
+                        }
+                        0x8000 {
+                            $StatusReason = "Physical drive improperly connected"
+                            break
+                        }
+                        0x8001 {
+                            $StatusReason = "Expanding"
+                            break
+                        }
+                        0x8002 {
+                            $StatusReason = "Overheated"
+                            break
+                        }
+                        0x8003 {
+                            $StatusReason = "Overheating"
+                            break
+                        }
+                        0x8004 {
+                            $StatusReason = "Interim Recovery"
+                            break
+                        }
+                        0x8005 {
+                            $StatusReason = "Not configured"
+                            break
+                        }
+                        0x8006 {
+                            $StatusReason = "Not yet available"
+                            break
+                        }
+                        0x8007 {
+                            $StatusReason = "Queued for expansion"
+                            break
+                        }
+                        0x8008 {
+                            $StatusReason = "Ready for recovery"
+                            break
+                        }
+                        0x8009 {
+                            $StatusReason = "Recovering"
+                            break
+                        }
+                        0x800A {
+                            $StatusReason = "Wrong drive replaced"
+                            break
+                        }
+                        0x800B {
+                            $StatusReason = "Erase in Progress"
+                            break
+                        }
+                        0x800C {
+                            $StatusReason = "Erase completed"
+                            break
+                        }
+                        default {
+                            $StatusReason = "Unknown"
+                            break
+                        }
+                    }
+                    
+                    $OutObject | Add-Member -type NoteProperty -name OperationalStatus -value $OperationalStatus
+                    $OutObject | Add-Member -type NoteProperty -name StatusReason -value $StatusReason
+                                    
+                    $OutObject | Add-Member -type NoteProperty -name PercentComplete -value $ArrayVolume.PercentComplete
+
+                    Write-Output $OutObject
+                } # end ForEach $ArrayVolume
+            }
+        }
+
+    } # end of ShouldProcess
+} # end function Get-HPArrayVolumes
 
 
 
