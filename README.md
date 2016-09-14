@@ -10,6 +10,10 @@
 
   Information about installed array controllers
   
+* ##### Get-HPArrayVolumes
+
+  Information about array storage volumes
+
 * ##### Get-HPiLOInformation
 
   Information about iLO interfaces in a system
