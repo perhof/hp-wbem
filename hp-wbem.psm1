@@ -77,6 +77,14 @@ function Get-HPArrayDisks
                 $OutObject | Add-Member -type NoteProperty -name SizeInGigabytes -value ([math]::round(($driveStorage.BlockSize * $driveStorage.NumberOfBlocks) / 1000000000))
                 $OutObject | Add-Member -type NoteProperty -name PowerOnHours -value $driveStorage.TotalPowerOnHours
 
+                Switch ($driveStorage.OperationalStatus){
+                    2 {$driveStatus = "OK";break}
+                    5 {$driveStatus = "Predictive Failure";break}
+                    6 {$driveStatus = "Error";break}
+                    default {$driveStatus = "Unknown";break}
+                }
+                $OutObject | Add-Member -type NoteProperty -name Status -value $driveStatus
+
                 Write-Output $OutObject
             }
         }
