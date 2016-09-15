@@ -141,18 +141,34 @@ function Get-HPArrayControllers
                 #ArraySystemArrayController
                 $ArrayController = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemArrayController")
                 
+                #ArraySystemStorageVolume
+                $ArrayVolume = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemStorageVolume")
+                $ArrayVolumeCount = ($ArrayVolume | measure).Count
+                
                 $OutObject = New-Object System.Object
                 $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
                 $OutObject | Add-Member -type NoteProperty -name ControllerName -value $ArrayController.ElementName
 
                 Switch ($ArrayController | select -ExpandProperty OperationalStatus | select -first 1) {
+                    $null {$ControllerStatus = $null;break}
                     2 {$ControllerStatus = "OK";break}
-                    6 {$ControllerStatus = "ERROR";break}
+                    3 {$ControllerStatus = "Degraded";break}
+                    6 {$ControllerStatus = "Error";break}
                     default {$ControllerStatus = "Unknown"}
                 }
                 $OutObject | Add-Member -type NoteProperty -name ControllerStatus -value $ControllerStatus
 
+                Switch ($ArrayController.AcceleratorBackupPowerSource) {
+                    $null {$CacheBackupType = $null;break}
+                    1 {$CacheBackupType="Battery";break}
+                    2 {$CacheBackupType="Capacitor";break}
+                    3 {$CacheBackupType="N/A";break}
+                    default {$CacheBackupType="Unknown"}
+                }
+                $OutObject | Add-Member -type NoteProperty -name CacheBackupType -value $CacheBackupType
+
                 Switch ($ArrayController.BatteryStatus) {
+                    $null {$BatteryStatus = $null;break}
                     1 {$BatteryStatus = "OK";break}
                     2 {$BatteryStatus = "Failed";break}
                     3 {$BatteryStatus = "Not Fully Charged";break}
@@ -162,13 +178,14 @@ function Get-HPArrayControllers
                 $OutObject | Add-Member -type NoteProperty -name BatteryStatus -value $BatteryStatus
                 
                 Switch ($ArrayController.CacheStatus) {
+                    $null {$CacheStatus = $null;break}
                     1 {$CacheStatus="OK";break}
                     2 {$CacheStatus="Temporarily disabled";break}
                     3 {$CacheStatus="Permanently disabled";break}
                     4 {$CacheStatus="Not Configured";break}
                     default {$CacheStatus="Unknown"}
                 }
-                $OutObject | Add-Member -type NoteProperty -name CacheStatus -value ($CacheStatus)
+                $OutObject | Add-Member -type NoteProperty -name CacheStatus -value $CacheStatus
                 
                 if ($ArrayController.IsSplitCacheSupported) {
                     $SplitReadSize = $ArrayController.SplitReadSize/1024/1024
@@ -183,7 +200,7 @@ function Get-HPArrayControllers
                 $OutObject | Add-Member -type NoteProperty -name ReadCacheSizeMB -value ($SplitReadSize)
                 $OutObject | Add-Member -type NoteProperty -name WriteCacheSizeMB -value ($SplitWriteSize)
                 $OutObject | Add-Member -type NoteProperty -name TotalCacheSizeMB -value ($CacheSizeTotal)
-                
+                $OutObject | Add-Member -type NoteProperty -name StorageVolumes -value ($ArrayVolumeCount)
                 $OutObject | Add-Member -type NoteProperty -name FirmwareVersion -value ($ArrayFW.VersionString)
                 Write-Output $OutObject
             }
