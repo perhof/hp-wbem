@@ -8,7 +8,7 @@
 
   **Get-HPArrayControllers**
   
-  Added StorageVolumes and CacheBackupType properties. Improved ControllerStatus property
+  Added StorageVolumes (count) and CacheBackupType (Battery, Capacitor or N/A) properties. Improved ControllerStatus property
 
 ### Sep 14, 2016
   **Get-HPArrayVolumes**
