@@ -1,6 +1,15 @@
 # Changelog
 ### History for module hp-wbem.psm1
 
+### Oct 15, 2016
+  **Get-HPTapeDrives**
+  
+  Added new function
+  
+  **General**
+
+  Tidied up a few bits of code
+  
 ### Sep 18, 2016
   **Get-HPArrayDisks**
   

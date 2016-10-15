@@ -26,10 +26,10 @@ function Get-HPArrayDisks
     .DESCRIPTION
     The Get-HPArrayDisks function works through WMI and requires
     that the HP Insight Management WBEM Providers are installed on
-    the server that is being quiered.
+    the server that is being queried.
     
     .PARAMETER Computername
-    The HP server for which the disks should be listed.
+    The HP server to retrieve information from.
     This parameter is optional and if the parameter isn't specified
     the command defaults to local machine.
     First positional parameter.
@@ -103,10 +103,10 @@ function Get-HPArrayControllers
     .DESCRIPTION
     The Get-HPArrayControllers function works through WMI and requires
     that the HP Insight Management WBEM Providers are installed on
-    the server that is being quiered.
+    the server that is being queried.
     
     .PARAMETER Computername
-    The HP server for which the array controllers should be listed.
+    The HP server to retrieve information from.
     This parameter is optional and if the parameter isn't specified
     the command defaults to local machine.
     First positional parameter.
@@ -143,13 +143,13 @@ function Get-HPArrayControllers
                 
                 #ArraySystemStorageVolume
                 $ArrayVolume = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemStorageVolume")
-                $ArrayVolumeCount = ($ArrayVolume | measure).Count
+                $ArrayVolumeCount = ($ArrayVolume | Measure-Object).Count
                 
                 $OutObject = New-Object System.Object
                 $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
                 $OutObject | Add-Member -type NoteProperty -name ControllerName -value $ArrayController.ElementName
 
-                Switch ($ArrayController | select -ExpandProperty OperationalStatus | select -first 1) {
+                Switch ($ArrayController | Select-Object -ExpandProperty OperationalStatus -First 1) {
                     $null {$ControllerStatus = $null;break}
                     2 {$ControllerStatus = "OK";break}
                     3 {$ControllerStatus = "Degraded";break}
@@ -220,10 +220,10 @@ function Get-HPArrayVolumes
     .DESCRIPTION
     The Get-HPArrayVolumes function works through WMI and requires
     that the HP Insight Management WBEM Providers are installed on
-    the server that is being quiered.
+    the server that is being queried.
     
     .PARAMETER Computername
-    The HP server for which the array volumes should be listed.
+    The HP server to retrieve information from.
     This parameter is optional and if the parameter isn't specified
     the command defaults to local machine.
     First positional parameter.
@@ -257,8 +257,8 @@ function Get-HPArrayVolumes
                 
                 #ArraySystemStorageVolume
                 $ArrayVolumes = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemStorageVolume")
-                # array controllers with no volumes return a null object instead of an empty collection. Breaks ForEach loop
-                if ($ArrayVolumes -eq $null){$ArrayVolumes = @()} 
+                # array controllers with no volumes return a null object instead of an empty collection which breaks the ForEach loop
+                if ($null -eq $ArrayVolumes){$ArrayVolumes = @()} 
 
                 ForEach ($ArrayVolume in $ArrayVolumes){
                     $OutObject = New-Object System.Object
@@ -394,10 +394,10 @@ function Get-HPiLOInformation
     .DESCRIPTION
     The Get-HPiLOInformation function works through WMI and requires
     that the HP Insight Management WBEM Providers are installed on
-    the server that is being quiered.
+    the server that is being queried.
     
     .PARAMETER Computername
-    The HP server for which the iLO firmware info should be listed.
+    The HP server to retrieve information from.
     This parameter is optional and if the parameter isn't specified
     the command defaults to local machine.
     First positional parameter.
@@ -474,12 +474,12 @@ function Get-HPNetworkAdapters
     .DESCRIPTION
     The Get-HPNetworkAdapters function works through WMI and requires
     that the HP Insight Management WBEM Providers are installed on
-    the server that is being quiered.
+    the server that is being queried.
     Adapters that have been disabled will not be listed since they
     don't expose enough information through the WBEM providers.    
     
     .PARAMETER Computername
-    The HP server for which the network adapters should be listed.
+    The HP server to retrieve information from.
     This parameter is optional and if the parameter isn't specified
     the command defaults to local machine.
     First positional parameter.
@@ -552,10 +552,10 @@ function Get-HPPowerSupplies
     .DESCRIPTION
     The Get-HPPowerSupplies function works through WMI and requires
     that the HP Insight Management WBEM Providers are installed on
-    the server that is being quiered.
+    the server that is being queried.
     
     .PARAMETER Computername
-    The HP server for which the power supplies should be listed.
+    The HP server to retrieve information from.
     This parameter is optional and if the parameter isn't specified
     the command defaults to local machine.
     First positional parameter.
@@ -629,10 +629,10 @@ function Get-HPSystemInformation
     .DESCRIPTION
     The Get-HPSystemInformation function works through WMI and requires
     that the HP Insight Management WBEM Providers are installed on
-    the server that is being quiered.
+    the server that is being queried.
     
     .PARAMETER Computername
-    The HP server for which the system information should be listed.
+    The HP server to retrieve information from.
     This parameter is optional and if the parameter isn't specified
     the command defaults to local machine.
     First positional parameter.
@@ -664,23 +664,22 @@ function Get-HPSystemInformation
                 $Processors = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HP_Processor -ErrorAction Stop
                 $PowerSupplies = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HP_WinPowerRedundancySet -ErrorAction Stop
                 $PowerSupplySlots = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HP_PowerSupplySlot -ErrorAction Stop
-                $SystemRom = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HP_SystemROMFirmware -ErrorAction Stop | where {$_.instanceID -match '001'}
+                $SystemRom = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HP_SystemROMFirmware -ErrorAction Stop | Where-Object {$_.instanceID -match '001'}
                 $Chassis =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -class HP_ComputerSystemChassis -ErrorAction Stop
-                #if ($Chassis -eq $null) { return }
-                ForEach ($item in $Chassis){
+                ForEach ($chassisitem in $Chassis){
 
                     $OutObject = New-Object System.Object
                     $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
-                    $OutObject | Add-Member -type NoteProperty -name Model -value $item.Model
-                    $OutObject | Add-Member -type NoteProperty -name ProductID -value $item.ProductID
-                    $OutObject | Add-Member -type NoteProperty -name SerialNumber -value $item.SerialNumber
+                    $OutObject | Add-Member -type NoteProperty -name Model -value $chassisitem.Model
+                    $OutObject | Add-Member -type NoteProperty -name ProductID -value $chassisitem.ProductID
+                    $OutObject | Add-Member -type NoteProperty -name SerialNumber -value $chassisitem.SerialNumber
                     
-                    $ProcessorCount = ($Processors | measure).Count
+                    $ProcessorCount = ($Processors | Measure-Object).Count
                     $OutObject | Add-Member -type NoteProperty -name NoOfProcessors -value $ProcessorCount
-                    $ProcessorModel = $Processors | select -ExpandProperty Description -Unique
+                    $ProcessorModel = $Processors | Select-Object -ExpandProperty Description -Unique
                     $OutObject | Add-Member -type NoteProperty -name ProcessorModel -value $ProcessorModel
                     
-                    $PsuSlotCount = ($PowerSupplySlots | measure).Count
+                    $PsuSlotCount = ($PowerSupplySlots | Measure-Object).Count
                     $OutObject | Add-Member -type NoteProperty -name NoOfPsuSlots -value $PsuSlotCount
                     if ($PowerSupplies) {
                         switch ($PowerSupplies.RedundancyStatus){
@@ -717,3 +716,91 @@ function Get-HPSystemInformation
 
     } # end of ShouldProcess
 } # end function Get-HPSystemInformation
+
+
+
+function Get-HPTapeDrives
+{
+    <#
+    .SYNOPSIS
+    Retrieves tape drive information for HP servers.
+    
+    .DESCRIPTION
+    The Get-HPTapeDrives function works through WMI and requires
+    that the HP Insight Management WBEM Providers are installed on
+    the server that is being queried.
+    
+    .PARAMETER Computername
+    The HP server to retrieve information from.
+    This parameter is optional and if the parameter isn't specified
+    the command defaults to local machine.
+    First positional parameter.
+
+    .EXAMPLE
+    Get-HPTapeDrives
+    Lists tape drive information for the local machine
+
+    .EXAMPLE
+    Get-HPTapeDrives SRV-HP-A
+    Lists tape drive information for server SRV-HP-A
+
+    .EXAMPLE
+    "SRV-HP-A", "SRV-HP-B", "SRV-HP-C" | Get-HPTapeDrives
+    Lists tape drive information for three servers
+    
+    #>
+    [CmdletBinding(SupportsShouldProcess=$true)]
+    Param(
+    [Parameter(Mandatory=$false, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true, Position = 1)][string]$Computername=$env:computername
+    )
+
+    Process{
+
+        if ($pscmdlet.ShouldProcess("List tape drives on server " +$Computername)){
+            $tapedrives =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query "select * from HPWMITape_TapeDrive"
+            ForEach ($tapedrive in $tapedrives){
+                $OutObject = New-Object System.Object
+                # basic information
+                $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                $OutObject | Add-Member -type NoteProperty -name ElementName -value $tapedrive.ElementName
+                
+                # interface type
+                $driveConnection = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPWMITape_TapeDrive.CreationClassName='HPWMITape_TapeDrive',DeviceID='" + $tapedrive.DeviceID + "',SystemCreationClassName='" + $tapedrive.SystemCreationClassName + "',SystemName='" + $tapedrive.SystemName + "'} WHERE AssocClass=HPWMITape_TapeDriveToProtocolEndpoint")
+                Switch ($driveConnection.ConnectionType){
+                    3 {$driveInterface="Parallel SCSI";break}
+                    8 {$driveInterface="SAS";break}
+                }
+                $OutObject | Add-Member -type NoteProperty -name Interface -value $driveInterface
+
+                # drive firmware and s/n
+                $driveFW = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPWMITape_TapeDrive.CreationClassName='HPWMITape_TapeDrive',DeviceID='" + $tapedrive.DeviceID + "',SystemCreationClassName='" + $tapedrive.SystemCreationClassName + "',SystemName='" + $tapedrive.SystemName + "'} WHERE AssocClass=HPWMITape_TapeDriveToTapeDriveFirmware")
+                $OutObject | Add-Member -type NoteProperty -name SerialNumber -value $driveFW.SerialNumber.trim()
+                $OutObject | Add-Member -type NoteProperty -name FirmwareVersion -value $driveFW.VersionString.trim()
+
+                # operational status
+                Switch ($tapedrive.OperationalStatus){
+                    2 {$driveStatus = "OK";break}
+                    3 {$driveStatus = "Degraded";break}
+                    6 {$driveStatus = "Error";break}
+                    10 {$driveStatus = "Stopped/Offline";break}
+                    default {$driveStatus = "Unknown";break}
+                }
+                $OutObject | Add-Member -type NoteProperty -name Status -value $driveStatus
+                
+                # cleaning status
+                if ($tapedrive.NeedsCleaning)
+                {
+                    $NeedsCleaning = $true
+                }
+                else
+                {
+                    $NeedsCleaning = $false
+                }
+                $OutObject | Add-Member -type NoteProperty -name NeedsCleaning -value $NeedsCleaning
+                
+                Write-Output $OutObject
+            }
+        }
+
+    } # end of ShouldProcess
+} # end function Get-HPTapeDrives

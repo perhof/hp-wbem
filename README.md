@@ -20,7 +20,7 @@
 
 * ##### Get-HPNetworkAdapters
 
-  Information about activated network adapters in a system.
+  Information about activated network adapters in a system
 
 * ##### Get-HPPowerSupplies
 
@@ -30,6 +30,10 @@
 
   Basic information about system such as product and serial number, amount and type of  CPU, RAM and power supplies
 
+* ##### Get-HPTapeDrives
+
+  Information about HP tape drives connected to a system through an HP controller
+  
 #### Usage
 Import module in PowerShell:
 
