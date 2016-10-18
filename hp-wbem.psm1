@@ -757,49 +757,59 @@ function Get-HPTapeDrives
     Process{
 
         if ($pscmdlet.ShouldProcess("List tape drives on server " +$Computername)){
-            $tapedrives =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query "select * from HPWMITape_TapeDrive"
-            ForEach ($tapedrive in $tapedrives){
+            Try {
+                $tapedrives = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query "select * from HPWMITape_TapeDrive"
+                ForEach ($tapedrive in $tapedrives){
+                    $OutObject = New-Object System.Object
+                    # basic information
+                    $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                    $OutObject | Add-Member -type NoteProperty -name ElementName -value $tapedrive.ElementName
+                    
+                    # interface type
+                    $driveConnection = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPWMITape_TapeDrive.CreationClassName='HPWMITape_TapeDrive',DeviceID='" + $tapedrive.DeviceID + "',SystemCreationClassName='" + $tapedrive.SystemCreationClassName + "',SystemName='" + $tapedrive.SystemName + "'} WHERE AssocClass=HPWMITape_TapeDriveToProtocolEndpoint") -ErrorAction Stop
+                    Switch ($driveConnection.ConnectionType){
+                        3 {$driveInterface="Parallel SCSI";break}
+                        8 {$driveInterface="SAS";break}
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name Interface -value $driveInterface
+
+                    # drive firmware and s/n
+                    $driveFW = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPWMITape_TapeDrive.CreationClassName='HPWMITape_TapeDrive',DeviceID='" + $tapedrive.DeviceID + "',SystemCreationClassName='" + $tapedrive.SystemCreationClassName + "',SystemName='" + $tapedrive.SystemName + "'} WHERE AssocClass=HPWMITape_TapeDriveToTapeDriveFirmware") -ErrorAction Stop
+                    $OutObject | Add-Member -type NoteProperty -name SerialNumber -value $driveFW.SerialNumber.trim()
+                    $OutObject | Add-Member -type NoteProperty -name FirmwareVersion -value $driveFW.VersionString.trim()
+
+                    # operational status
+                    Switch ($tapedrive.OperationalStatus){
+                        2 {$driveStatus = "OK";break}
+                        3 {$driveStatus = "Degraded";break}
+                        6 {$driveStatus = "Error";break}
+                        10 {$driveStatus = "Stopped/Offline";break}
+                        default {$driveStatus = "Unknown";break}
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name Status -value $driveStatus
+                    
+                    # cleaning status
+                    if ($tapedrive.NeedsCleaning)
+                    {
+                        $NeedsCleaning = $true
+                    }
+                    else
+                    {
+                        $NeedsCleaning = $false
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name NeedsCleaning -value $NeedsCleaning
+                    
+                    Write-Output $OutObject
+                }
+            }
+            Catch
+            {
+                Write-Warning ("Can't get tape information for "+$Computername)
                 $OutObject = New-Object System.Object
-                # basic information
                 $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
-                $OutObject | Add-Member -type NoteProperty -name ElementName -value $tapedrive.ElementName
-                
-                # interface type
-                $driveConnection = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPWMITape_TapeDrive.CreationClassName='HPWMITape_TapeDrive',DeviceID='" + $tapedrive.DeviceID + "',SystemCreationClassName='" + $tapedrive.SystemCreationClassName + "',SystemName='" + $tapedrive.SystemName + "'} WHERE AssocClass=HPWMITape_TapeDriveToProtocolEndpoint")
-                Switch ($driveConnection.ConnectionType){
-                    3 {$driveInterface="Parallel SCSI";break}
-                    8 {$driveInterface="SAS";break}
-                }
-                $OutObject | Add-Member -type NoteProperty -name Interface -value $driveInterface
-
-                # drive firmware and s/n
-                $driveFW = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPWMITape_TapeDrive.CreationClassName='HPWMITape_TapeDrive',DeviceID='" + $tapedrive.DeviceID + "',SystemCreationClassName='" + $tapedrive.SystemCreationClassName + "',SystemName='" + $tapedrive.SystemName + "'} WHERE AssocClass=HPWMITape_TapeDriveToTapeDriveFirmware")
-                $OutObject | Add-Member -type NoteProperty -name SerialNumber -value $driveFW.SerialNumber.trim()
-                $OutObject | Add-Member -type NoteProperty -name FirmwareVersion -value $driveFW.VersionString.trim()
-
-                # operational status
-                Switch ($tapedrive.OperationalStatus){
-                    2 {$driveStatus = "OK";break}
-                    3 {$driveStatus = "Degraded";break}
-                    6 {$driveStatus = "Error";break}
-                    10 {$driveStatus = "Stopped/Offline";break}
-                    default {$driveStatus = "Unknown";break}
-                }
-                $OutObject | Add-Member -type NoteProperty -name Status -value $driveStatus
-                
-                # cleaning status
-                if ($tapedrive.NeedsCleaning)
-                {
-                    $NeedsCleaning = $true
-                }
-                else
-                {
-                    $NeedsCleaning = $false
-                }
-                $OutObject | Add-Member -type NoteProperty -name NeedsCleaning -value $NeedsCleaning
-                
                 Write-Output $OutObject
             }
+
         }
 
     } # end of ShouldProcess
