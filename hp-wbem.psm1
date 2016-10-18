@@ -12,6 +12,7 @@ Get-HPiLOInformation
 Get-HPNetworkAdapters
 Get-HPPowerSupplies
 Get-HPSystemInformation
+Get-HPTapeDrives
 
 #>
 
