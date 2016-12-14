@@ -56,41 +56,51 @@ function Get-HPArrayDisks
     Process{
 
         if ($pscmdlet.ShouldProcess("List disks on server " +$Computername)){
-            $diskdrives =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query "select * from HPSA_DiskDrive"
-            ForEach ($disk in $diskdrives){
+            Try
+            {
+                $diskdrives =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query "select * from HPSA_DiskDrive" -ErrorAction Stop
+                ForEach ($disk in $diskdrives){
+                    $OutObject = New-Object System.Object
+                    $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                    $OutObject | Add-Member -type NoteProperty -name Slot -value $disk.ElementName
+                    $OutObject | Add-Member -type NoteProperty -name Interface -value $disk.Description
+                    $OutObject | Add-Member -type NoteProperty -name RotationalSpeed -value $disk.DriveRotationalSpeed
+
+                    $drivePhys = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPSA_DiskDrive.CreationClassName='HPSA_DiskDrive',DeviceID='" + $disk.DeviceID + "',SystemCreationClassName='" + $disk.SystemCreationClassName + "',SystemName='" + $disk.SystemName + "'} WHERE AssocClass=HPSA_DiskPhysicalPackageDiskDrive")
+                    $driveModel = $drivePhys.Model
+                    $driveModel = $driveModel -Replace "HP      ", ""
+                    $driveModel = $driveModel -Replace "ATA     ", ""
+                    $OutObject | Add-Member -type NoteProperty -name Model -value $driveModel
+                    $OutObject | Add-Member -type NoteProperty -name SerialNumber -value $drivePhys.SerialNumber.trim()
+
+                    $driveFW = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPSA_DiskDrive.CreationClassName='HPSA_DiskDrive',DeviceID='" + $disk.DeviceID + "',SystemCreationClassName='" + $disk.SystemCreationClassName + "',SystemName='" + $disk.SystemName + "'} WHERE AssocClass=HPSA_DiskDriveDiskDriveFirmware")
+                    $OutObject | Add-Member -type NoteProperty -name FirmwareVersion -value $driveFW.VersionString.trim()
+
+                    $driveStorage = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPSA_DiskDrive.CreationClassName='HPSA_DiskDrive',DeviceID='" + $disk.DeviceID + "',SystemCreationClassName='" + $disk.SystemCreationClassName + "',SystemName='" + $disk.SystemName + "'} WHERE AssocClass=HPSA_DiskDriveStorageExtent")
+                    $OutObject | Add-Member -type NoteProperty -name SizeInGigabytes -value ([math]::round(($driveStorage.BlockSize * $driveStorage.NumberOfBlocks) / 1000000000))
+                    $OutObject | Add-Member -type NoteProperty -name PowerOnHours -value $driveStorage.TotalPowerOnHours
+
+                    Switch ($driveStorage.OperationalStatus){
+                        2 {$driveStatus = "OK";break}
+                        5 {$driveStatus = "Predictive Failure";break}
+                        6 {$driveStatus = "Error";break}
+                        default {$driveStatus = "Unknown";break}
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name Status -value $driveStatus
+
+                    Write-Output $OutObject
+                } #end ForEach $disk
+            }
+            Catch
+            {
+                Write-Warning ("Can't get array disk information for "+$Computername + ". " + $_.Exception.Message)
                 $OutObject = New-Object System.Object
                 $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
-                $OutObject | Add-Member -type NoteProperty -name Slot -value $disk.ElementName
-                $OutObject | Add-Member -type NoteProperty -name Interface -value $disk.Description
-                $OutObject | Add-Member -type NoteProperty -name RotationalSpeed -value $disk.DriveRotationalSpeed
-
-                $drivePhys = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPSA_DiskDrive.CreationClassName='HPSA_DiskDrive',DeviceID='" + $disk.DeviceID + "',SystemCreationClassName='" + $disk.SystemCreationClassName + "',SystemName='" + $disk.SystemName + "'} WHERE AssocClass=HPSA_DiskPhysicalPackageDiskDrive")
-                $driveModel = $drivePhys.Model
-                $driveModel = $driveModel -Replace "HP      ", ""
-                $driveModel = $driveModel -Replace "ATA     ", ""
-                $OutObject | Add-Member -type NoteProperty -name Model -value $driveModel
-                $OutObject | Add-Member -type NoteProperty -name SerialNumber -value $drivePhys.SerialNumber.trim()
-
-                $driveFW = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPSA_DiskDrive.CreationClassName='HPSA_DiskDrive',DeviceID='" + $disk.DeviceID + "',SystemCreationClassName='" + $disk.SystemCreationClassName + "',SystemName='" + $disk.SystemName + "'} WHERE AssocClass=HPSA_DiskDriveDiskDriveFirmware")
-                $OutObject | Add-Member -type NoteProperty -name FirmwareVersion -value $driveFW.VersionString.trim()
-
-                $driveStorage = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPSA_DiskDrive.CreationClassName='HPSA_DiskDrive',DeviceID='" + $disk.DeviceID + "',SystemCreationClassName='" + $disk.SystemCreationClassName + "',SystemName='" + $disk.SystemName + "'} WHERE AssocClass=HPSA_DiskDriveStorageExtent")
-                $OutObject | Add-Member -type NoteProperty -name SizeInGigabytes -value ([math]::round(($driveStorage.BlockSize * $driveStorage.NumberOfBlocks) / 1000000000))
-                $OutObject | Add-Member -type NoteProperty -name PowerOnHours -value $driveStorage.TotalPowerOnHours
-
-                Switch ($driveStorage.OperationalStatus){
-                    2 {$driveStatus = "OK";break}
-                    5 {$driveStatus = "Predictive Failure";break}
-                    6 {$driveStatus = "Error";break}
-                    default {$driveStatus = "Unknown";break}
-                }
-                $OutObject | Add-Member -type NoteProperty -name Status -value $driveStatus
-
                 Write-Output $OutObject
             }
-        }
-
-    } # end of ShouldProcess
+            
+        } # end of ShouldProcess
+    } # end of Process
 } # end function Get-HPArrayDisks
 
 
@@ -133,81 +143,91 @@ function Get-HPArrayControllers
     Process{
 
         if ($pscmdlet.ShouldProcess("List array controllers on server " +$Computername)){
-            $ArraySystems =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HPSA_ArraySystem
-            ForEach ($ArraySys in $ArraySystems){
+            Try
+            {
+                $ArraySystems =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HPSA_ArraySystem -ErrorAction Stop
+                ForEach ($ArraySys in $ArraySystems){
                 
-                #ArraySystemFirmware
-                $ArrayFW = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemFirmware")
+                    #ArraySystemFirmware
+                    $ArrayFW = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemFirmware")
 
-                #ArraySystemArrayController
-                $ArrayController = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemArrayController")
+                    #ArraySystemArrayController
+                    $ArrayController = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemArrayController")
                 
-                #ArraySystemStorageVolume
-                $ArrayVolume = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemStorageVolume")
-                $ArrayVolumeCount = ($ArrayVolume | Measure-Object).Count
+                    #ArraySystemStorageVolume
+                    $ArrayVolume = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemStorageVolume")
+                    $ArrayVolumeCount = ($ArrayVolume | Measure-Object).Count
                 
+                    $OutObject = New-Object System.Object
+                    $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                    $OutObject | Add-Member -type NoteProperty -name ControllerName -value $ArrayController.ElementName
+
+                    Switch ($ArrayController | Select-Object -ExpandProperty OperationalStatus -First 1) {
+                        $null {$ControllerStatus = $null;break}
+                        2 {$ControllerStatus = "OK";break}
+                        3 {$ControllerStatus = "Degraded";break}
+                        6 {$ControllerStatus = "Error";break}
+                        default {$ControllerStatus = "Unknown"}
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name ControllerStatus -value $ControllerStatus
+
+                    Switch ($ArrayController.AcceleratorBackupPowerSource) {
+                        $null {$CacheBackupType = $null;break}
+                        1 {$CacheBackupType="Battery";break}
+                        2 {$CacheBackupType="Capacitor";break}
+                        3 {$CacheBackupType="N/A";break}
+                        default {$CacheBackupType="Unknown"}
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name CacheBackupType -value $CacheBackupType
+
+                    Switch ($ArrayController.BatteryStatus) {
+                        $null {$BatteryStatus = $null;break}
+                        1 {$BatteryStatus = "OK";break}
+                        2 {$BatteryStatus = "Failed";break}
+                        3 {$BatteryStatus = "Not Fully Charged";break}
+                        4 {$BatteryStatus = "Not Present";break}
+                        default {$BatteryStatus = "Unknown"}
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name BatteryStatus -value $BatteryStatus
+                
+                    Switch ($ArrayController.CacheStatus) {
+                        $null {$CacheStatus = $null;break}
+                        1 {$CacheStatus="OK";break}
+                        2 {$CacheStatus="Temporarily disabled";break}
+                        3 {$CacheStatus="Permanently disabled";break}
+                        4 {$CacheStatus="Not Configured";break}
+                        default {$CacheStatus="Unknown"}
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name CacheStatus -value $CacheStatus
+                
+                    if ($ArrayController.IsSplitCacheSupported) {
+                        $SplitReadSize = $ArrayController.SplitReadSize/1024/1024
+                        $SplitWriteSize = $ArrayController.SplitWriteSize/1024/1024
+                    }
+                    else{
+                        $SplitReadSize = $Null
+                        $SplitWriteSize = $Null
+                    }
+                    $CacheSizeTotal = $ArrayController.CacheSizeTotal/1024/1024
+                    $OutObject | Add-Member -type NoteProperty -name SplitCacheSupported -value ($ArrayController.IsSplitCacheSupported)
+                    $OutObject | Add-Member -type NoteProperty -name ReadCacheSizeMB -value ($SplitReadSize)
+                    $OutObject | Add-Member -type NoteProperty -name WriteCacheSizeMB -value ($SplitWriteSize)
+                    $OutObject | Add-Member -type NoteProperty -name TotalCacheSizeMB -value ($CacheSizeTotal)
+                    $OutObject | Add-Member -type NoteProperty -name StorageVolumes -value ($ArrayVolumeCount)
+                    $OutObject | Add-Member -type NoteProperty -name FirmwareVersion -value ($ArrayFW.VersionString)
+                    Write-Output $OutObject
+                } # end Foreach $ArraySys
+            }
+            Catch
+            {
+                Write-Warning ("Can't get array controller information for "+$Computername + ". " + $_.Exception.Message)
                 $OutObject = New-Object System.Object
                 $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
-                $OutObject | Add-Member -type NoteProperty -name ControllerName -value $ArrayController.ElementName
-
-                Switch ($ArrayController | Select-Object -ExpandProperty OperationalStatus -First 1) {
-                    $null {$ControllerStatus = $null;break}
-                    2 {$ControllerStatus = "OK";break}
-                    3 {$ControllerStatus = "Degraded";break}
-                    6 {$ControllerStatus = "Error";break}
-                    default {$ControllerStatus = "Unknown"}
-                }
-                $OutObject | Add-Member -type NoteProperty -name ControllerStatus -value $ControllerStatus
-
-                Switch ($ArrayController.AcceleratorBackupPowerSource) {
-                    $null {$CacheBackupType = $null;break}
-                    1 {$CacheBackupType="Battery";break}
-                    2 {$CacheBackupType="Capacitor";break}
-                    3 {$CacheBackupType="N/A";break}
-                    default {$CacheBackupType="Unknown"}
-                }
-                $OutObject | Add-Member -type NoteProperty -name CacheBackupType -value $CacheBackupType
-
-                Switch ($ArrayController.BatteryStatus) {
-                    $null {$BatteryStatus = $null;break}
-                    1 {$BatteryStatus = "OK";break}
-                    2 {$BatteryStatus = "Failed";break}
-                    3 {$BatteryStatus = "Not Fully Charged";break}
-                    4 {$BatteryStatus = "Not Present";break}
-                    default {$BatteryStatus = "Unknown"}
-                }
-                $OutObject | Add-Member -type NoteProperty -name BatteryStatus -value $BatteryStatus
-                
-                Switch ($ArrayController.CacheStatus) {
-                    $null {$CacheStatus = $null;break}
-                    1 {$CacheStatus="OK";break}
-                    2 {$CacheStatus="Temporarily disabled";break}
-                    3 {$CacheStatus="Permanently disabled";break}
-                    4 {$CacheStatus="Not Configured";break}
-                    default {$CacheStatus="Unknown"}
-                }
-                $OutObject | Add-Member -type NoteProperty -name CacheStatus -value $CacheStatus
-                
-                if ($ArrayController.IsSplitCacheSupported) {
-                    $SplitReadSize = $ArrayController.SplitReadSize/1024/1024
-                    $SplitWriteSize = $ArrayController.SplitWriteSize/1024/1024
-                }
-                else{
-                    $SplitReadSize = $Null
-                    $SplitWriteSize = $Null
-                }
-                $CacheSizeTotal = $ArrayController.CacheSizeTotal/1024/1024
-                $OutObject | Add-Member -type NoteProperty -name SplitCacheSupported -value ($ArrayController.IsSplitCacheSupported)
-                $OutObject | Add-Member -type NoteProperty -name ReadCacheSizeMB -value ($SplitReadSize)
-                $OutObject | Add-Member -type NoteProperty -name WriteCacheSizeMB -value ($SplitWriteSize)
-                $OutObject | Add-Member -type NoteProperty -name TotalCacheSizeMB -value ($CacheSizeTotal)
-                $OutObject | Add-Member -type NoteProperty -name StorageVolumes -value ($ArrayVolumeCount)
-                $OutObject | Add-Member -type NoteProperty -name FirmwareVersion -value ($ArrayFW.VersionString)
                 Write-Output $OutObject
             }
-        }
 
-    } # end of ShouldProcess
+        } # end of ShouldProcess
+    } # end process
 } # end function Get-HPArrayControllers
 
 
@@ -250,137 +270,145 @@ function Get-HPArrayVolumes
     Process{
 
         if ($pscmdlet.ShouldProcess("List array volumes on server " +$Computername)){
-            $ArraySystems =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HPSA_ArraySystem
-            ForEach ($ArraySys in $ArraySystems){
+            Try {
+                $ArraySystems =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HPSA_ArraySystem -ErrorAction Stop
+                ForEach ($ArraySys in $ArraySystems){
                 
-                #ArraySystemArrayController
-                $ArrayController = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemArrayController")
+                    #ArraySystemArrayController
+                    $ArrayController = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemArrayController")
                 
-                #ArraySystemStorageVolume
-                $ArrayVolumes = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemStorageVolume")
-                # array controllers with no volumes return a null object instead of an empty collection which breaks the ForEach loop
-                if ($null -eq $ArrayVolumes){$ArrayVolumes = @()} 
+                    #ArraySystemStorageVolume
+                    $ArrayVolumes = Get-WmiObject -Computername $Computername -Namespace root\hpq -Query ("associators of {HPSA_ArraySystem.CreationClassName='HPSA_ArraySystem',Name='" + $ArraySys.Name + "'} WHERE AssocClass=HPSA_ArraySystemStorageVolume")
+                    # array controllers with no volumes return a null object instead of an empty collection which breaks the ForEach loop
+                    if ($null -eq $ArrayVolumes){$ArrayVolumes = @()} 
 
-                ForEach ($ArrayVolume in $ArrayVolumes){
-                    $OutObject = New-Object System.Object
-                    $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
-                    $OutObject | Add-Member -type NoteProperty -name ControllerName -value $ArrayController.ElementName
-                    $OutObject | Add-Member -type NoteProperty -name OSDiskID -value $ArrayVolume.OSName
-                    $OutObject | Add-Member -type NoteProperty -name SizeInGigabytes -value ([math]::round(($ArrayVolume.BlockSize * $ArrayVolume.NumberOfBlocks) / 1000000000))
+                    ForEach ($ArrayVolume in $ArrayVolumes){
+                        $OutObject = New-Object System.Object
+                        $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                        $OutObject | Add-Member -type NoteProperty -name ControllerName -value $ArrayController.ElementName
+                        $OutObject | Add-Member -type NoteProperty -name OSDiskID -value $ArrayVolume.OSName
+                        $OutObject | Add-Member -type NoteProperty -name SizeInGigabytes -value ([math]::round(($ArrayVolume.BlockSize * $ArrayVolume.NumberOfBlocks) / 1000000000))
                 
-                    # Fault tolerance model
-                    Switch ($ArrayVolume.FaultTolerance) {
-                        1 {$FaultTolerance = "RAID 0";break}
-                        2 {$FaultTolerance = "RAID 1";break}
-                        3 {$FaultTolerance = "RAID 1+0";break}
-                        4 {$FaultTolerance = "RAID 4";break}
-                        5 {$FaultTolerance = "RAID 5";break}
-                        6 {$FaultTolerance = "RAID 51";break}
-                        7 {$FaultTolerance = "RAID 6";break}
-                        8 {$FaultTolerance = "RAID 50";break}
-                        9 {$FaultTolerance = "RAID 60";break}
-                        default {$FaultTolerance = "Unknown"}
-                    }
-                    $OutObject | Add-Member -type NoteProperty -name FaultTolerance -value $FaultTolerance
-                    $OutObject | Add-Member -type NoteProperty -name StripeSizeKB -value ($ArrayVolume.StripeSize/1024)
+                        # Fault tolerance model
+                        Switch ($ArrayVolume.FaultTolerance) {
+                            1 {$FaultTolerance = "RAID 0";break}
+                            2 {$FaultTolerance = "RAID 1";break}
+                            3 {$FaultTolerance = "RAID 1+0";break}
+                            4 {$FaultTolerance = "RAID 4";break}
+                            5 {$FaultTolerance = "RAID 5";break}
+                            6 {$FaultTolerance = "RAID 51";break}
+                            7 {$FaultTolerance = "RAID 6";break}
+                            8 {$FaultTolerance = "RAID 50";break}
+                            9 {$FaultTolerance = "RAID 60";break}
+                            default {$FaultTolerance = "Unknown"}
+                        }
+                        $OutObject | Add-Member -type NoteProperty -name FaultTolerance -value $FaultTolerance
+                        $OutObject | Add-Member -type NoteProperty -name StripeSizeKB -value ($ArrayVolume.StripeSize/1024)
 
-                    # Operational Status
-                    Switch ($ArrayVolume.OperationalStatus) {
-                        2 {
-                            $OperationalStatus = "OK"
-                            $ExtStatus = $null
-                            break
-                            }
-                        3 {
-                            $OperationalStatus = "Degraded"
-                            $ExtStatus = $ArrayVolume.OperationalStatus[1]
-                            break
-                            }
-                        6 {
-                            $OperationalStatus = "Failed"
-                            $ExtStatus = $ArrayVolume.OperationalStatus[1]
-                            break
-                            }
-                        default {
-                            $FaultTolerance = "Unknown"
-                            $ExtStatus = $null
-                            }
-                    } # end switch
+                        # Operational Status
+                        Switch ($ArrayVolume.OperationalStatus) {
+                            2 {
+                                $OperationalStatus = "OK"
+                                $ExtStatus = $null
+                                break
+                                }
+                            3 {
+                                $OperationalStatus = "Degraded"
+                                $ExtStatus = $ArrayVolume.OperationalStatus[1]
+                                break
+                                }
+                            6 {
+                                $OperationalStatus = "Failed"
+                                $ExtStatus = $ArrayVolume.OperationalStatus[1]
+                                break
+                                }
+                            default {
+                                $FaultTolerance = "Unknown"
+                                $ExtStatus = $null
+                                }
+                        } # end switch
                     
-                    Switch ($ExtStatus) {
-                        $null {
-                            $StatusReason = $null
-                            break;
+                        Switch ($ExtStatus) {
+                            $null {
+                                $StatusReason = $null
+                                break;
+                            }
+                            0x8000 {
+                                $StatusReason = "Physical drive improperly connected"
+                                break
+                            }
+                            0x8001 {
+                                $StatusReason = "Expanding"
+                                break
+                            }
+                            0x8002 {
+                                $StatusReason = "Overheated"
+                                break
+                            }
+                            0x8003 {
+                                $StatusReason = "Overheating"
+                                break
+                            }
+                            0x8004 {
+                                $StatusReason = "Interim Recovery"
+                                break
+                            }
+                            0x8005 {
+                                $StatusReason = "Not configured"
+                                break
+                            }
+                            0x8006 {
+                                $StatusReason = "Not yet available"
+                                break
+                            }
+                            0x8007 {
+                                $StatusReason = "Queued for expansion"
+                                break
+                            }
+                            0x8008 {
+                                $StatusReason = "Ready for recovery"
+                                break
+                            }
+                            0x8009 {
+                                $StatusReason = "Recovering"
+                                break
+                            }
+                            0x800A {
+                                $StatusReason = "Wrong drive replaced"
+                                break
+                            }
+                            0x800B {
+                                $StatusReason = "Erase in Progress"
+                                break
+                            }
+                            0x800C {
+                                $StatusReason = "Erase completed"
+                                break
+                            }
+                            default {
+                                $StatusReason = "Unknown"
+                                break
+                            }
                         }
-                        0x8000 {
-                            $StatusReason = "Physical drive improperly connected"
-                            break
-                        }
-                        0x8001 {
-                            $StatusReason = "Expanding"
-                            break
-                        }
-                        0x8002 {
-                            $StatusReason = "Overheated"
-                            break
-                        }
-                        0x8003 {
-                            $StatusReason = "Overheating"
-                            break
-                        }
-                        0x8004 {
-                            $StatusReason = "Interim Recovery"
-                            break
-                        }
-                        0x8005 {
-                            $StatusReason = "Not configured"
-                            break
-                        }
-                        0x8006 {
-                            $StatusReason = "Not yet available"
-                            break
-                        }
-                        0x8007 {
-                            $StatusReason = "Queued for expansion"
-                            break
-                        }
-                        0x8008 {
-                            $StatusReason = "Ready for recovery"
-                            break
-                        }
-                        0x8009 {
-                            $StatusReason = "Recovering"
-                            break
-                        }
-                        0x800A {
-                            $StatusReason = "Wrong drive replaced"
-                            break
-                        }
-                        0x800B {
-                            $StatusReason = "Erase in Progress"
-                            break
-                        }
-                        0x800C {
-                            $StatusReason = "Erase completed"
-                            break
-                        }
-                        default {
-                            $StatusReason = "Unknown"
-                            break
-                        }
-                    }
                     
-                    $OutObject | Add-Member -type NoteProperty -name OperationalStatus -value $OperationalStatus
-                    $OutObject | Add-Member -type NoteProperty -name StatusReason -value $StatusReason
+                        $OutObject | Add-Member -type NoteProperty -name OperationalStatus -value $OperationalStatus
+                        $OutObject | Add-Member -type NoteProperty -name StatusReason -value $StatusReason
                                     
-                    $OutObject | Add-Member -type NoteProperty -name PercentComplete -value $ArrayVolume.PercentComplete
+                        $OutObject | Add-Member -type NoteProperty -name PercentComplete -value $ArrayVolume.PercentComplete
 
-                    Write-Output $OutObject
-                } # end ForEach $ArrayVolume
+                        Write-Output $OutObject
+                    } # end ForEach $ArrayVolume
+                } #end ForEach $ArraySys
             }
-        }
-
-    } # end of ShouldProcess
+            Catch
+            {
+                Write-Warning ("Can't get array volume information for "+$Computername + ". " + $_.Exception.Message)
+                $OutObject = New-Object System.Object
+                $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                Write-Output $OutObject
+            }
+        } # end of ShouldProcess
+    } # end of Process
 } # end function Get-HPArrayVolumes
 
 
@@ -424,44 +452,53 @@ function Get-HPiLOInformation
     Process{
 
         if ($pscmdlet.ShouldProcess("Retrieve iLO information from server " +$Computername)){
-            $MpFirmwares =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query "select * from HP_MPFirmware"
-            ForEach ($fw in $MpFirmwares){
-                $Mp = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HP_MPFirmware.InstanceID='" + $fw.InstanceID + "'} WHERE AssocClass=HP_MPInstalledFirmwareIdentity")
+            Try
+            {
+                $MpFirmwares =  Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query "select * from HP_MPFirmware" -ErrorAction Stop
+                ForEach ($fw in $MpFirmwares){
+                    $Mp = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HP_MPFirmware.InstanceID='" + $fw.InstanceID + "'} WHERE AssocClass=HP_MPInstalledFirmwareIdentity")
 
+                    $OutObject = New-Object System.Object
+                    $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                    $OutObject | Add-Member -type NoteProperty -name ControllerName -value $fw.Name
+
+                    Switch ($Mp.HealthState){
+                        5 {$stat = "OK"; break}
+                        10 {$stat = "Degraded/Warning"; break}
+                        20 {$stat = "Major Failure"; break}
+                        default {$stat = "Unknown"}
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name HealthState -value $stat
+
+                    $OutObject | Add-Member -type NoteProperty -name UniqueIdentifier -value $Mp.UniqueIdentifier.Trim()
+                    $OutObject | Add-Member -type NoteProperty -name Hostname -value $Mp.Hostname
+                    $OutObject | Add-Member -type NoteProperty -name IPAddress -value $Mp.IPAddress
+
+                    Switch ($Mp.NICCondition){
+                        2 {$stat = "OK"; break}
+                        3 {$stat = "Disabled"; break}
+                        4 {$stat = "Not in use"; break}
+                        5 {$stat = "Disconnected"; break}
+                        6 {$stat = "Failed"; break}
+                        default {$stat = "Unknown"}
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name NICCondition -value $stat
+                    $OutObject | Add-Member -type NoteProperty -name FirmwareVersion -value $fw.VersionString
+                    $OutObject | Add-Member -type NoteProperty -name ReleaseDate -value ($fw.ConvertToDateTime($fw.ReleaseDate))
+
+                    Write-Output $OutObject
+
+                } # end of ForEach $fw
+            }
+            Catch
+            {
+                Write-Warning ("Can't get iLO information for "+$Computername + ". " + $_.Exception.Message)
                 $OutObject = New-Object System.Object
                 $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
-                $OutObject | Add-Member -type NoteProperty -name ControllerName -value $fw.Name
-
-                Switch ($Mp.HealthState){
-                    5 {$stat = "OK"; break}
-                    10 {$stat = "Degraded/Warning"; break}
-                    20 {$stat = "Major Failure"; break}
-                    default {$stat = "Unknown"}
-                }
-                $OutObject | Add-Member -type NoteProperty -name HealthState -value $stat
-
-                $OutObject | Add-Member -type NoteProperty -name UniqueIdentifier -value $Mp.UniqueIdentifier.Trim()
-                $OutObject | Add-Member -type NoteProperty -name Hostname -value $Mp.Hostname
-                $OutObject | Add-Member -type NoteProperty -name IPAddress -value $Mp.IPAddress
-
-                Switch ($Mp.NICCondition){
-                    2 {$stat = "OK"; break}
-                    3 {$stat = "Disabled"; break}
-                    4 {$stat = "Not in use"; break}
-                    5 {$stat = "Disconnected"; break}
-                    6 {$stat = "Failed"; break}
-                    default {$stat = "Unknown"}
-                }
-                $OutObject | Add-Member -type NoteProperty -name NICCondition -value $stat
-                $OutObject | Add-Member -type NoteProperty -name FirmwareVersion -value $fw.VersionString
-                $OutObject | Add-Member -type NoteProperty -name ReleaseDate -value ($fw.ConvertToDateTime($fw.ReleaseDate))
-
                 Write-Output $OutObject
-
             }
-        }
-
-    } # end of ShouldProcess
+        } # end of ShouldProcess
+    } # end of Process
 } # end function Get-HPiLOInformation
 
 
@@ -531,15 +568,14 @@ function Get-HPNetworkAdapters
             }
             Catch
             {
-                Write-Warning ("Can't get system information for "+$Computername)
+                Write-Warning ("Can't get network adapter information for "+$Computername + ". " + $_.Exception.Message)
                 $OutObject = New-Object System.Object
                 $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
                 Write-Output $OutObject
             }
 
-        }
-
-    } # end of ShouldProcess
+        } # end of ShouldProcess
+    } # end of Process
 } # end function Get-HPNetworkAdapters
 
 
@@ -608,15 +644,14 @@ function Get-HPPowerSupplies
             }
             Catch
             {
-                Write-Warning ("Can't get system information for "+$Computername)
+                Write-Warning ("Can't get power supply information for "+$Computername + ". " + $_.Exception.Message)
                 $OutObject = New-Object System.Object
                 $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
                 Write-Output $OutObject
             }
 
-        }
-
-    } # end of ShouldProcess
+        } # end of ShouldProcess
+    } # end of Process
 } # end function Get-HPPowerSupplies
 
 
@@ -707,8 +742,7 @@ function Get-HPSystemInformation
             }
             Catch
             {
-
-                Write-Warning ("Can't get system information for "+$Computername)
+                Write-Warning ("Can't get system information for "+$Computername + ". " + $_.Exception.Message)
                 $OutObject = New-Object System.Object
                 $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
                 Write-Output $OutObject
@@ -759,7 +793,7 @@ function Get-HPTapeDrives
 
         if ($pscmdlet.ShouldProcess("List tape drives on server " +$Computername)){
             Try {
-                $tapedrives = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query "select * from HPWMITape_TapeDrive"
+                $tapedrives = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query "select * from HPWMITape_TapeDrive" -ErrorAction Stop
                 ForEach ($tapedrive in $tapedrives){
                     $OutObject = New-Object System.Object
                     # basic information
@@ -805,13 +839,12 @@ function Get-HPTapeDrives
             }
             Catch
             {
-                Write-Warning ("Can't get tape information for "+$Computername)
+                Write-Warning ("Can't get tape drive information for "+$Computername + ". " + $_.Exception.Message)
                 $OutObject = New-Object System.Object
                 $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
                 Write-Output $OutObject
             }
 
-        }
-
-    } # end of ShouldProcess
+        } # end of ShouldProcess
+    } # end of Process
 } # end function Get-HPTapeDrives
