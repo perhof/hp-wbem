@@ -1,6 +1,23 @@
 # Changelog
 ### History for module hp-wbem.psm1
 
+### Dec 14, 2016
+  **Get-HPArrayControllers**
+  
+  Added errorhandling
+  
+  **Get-HPArrayDisks**
+  
+  Added errorhandling
+
+  **Get-HPArrayVolumes**
+  
+  Added errorhandling
+
+**General**
+
+  Improved error handling
+
 ### Oct 15, 2016
   **Get-HPTapeDrives**
   
