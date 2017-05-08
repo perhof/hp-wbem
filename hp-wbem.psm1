@@ -78,7 +78,10 @@ function Get-HPArrayDisks
 
                     $driveStorage = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query ("ASSOCIATORS OF {HPSA_DiskDrive.CreationClassName='HPSA_DiskDrive',DeviceID='" + $disk.DeviceID + "',SystemCreationClassName='" + $disk.SystemCreationClassName + "',SystemName='" + $disk.SystemName + "'} WHERE AssocClass=HPSA_DiskDriveStorageExtent")
                     $OutObject | Add-Member -type NoteProperty -name SizeInGigabytes -value ([math]::round(($driveStorage.BlockSize * $driveStorage.NumberOfBlocks) / 1000000000))
-                    $OutObject | Add-Member -type NoteProperty -name PowerOnHours -value $driveStorage.TotalPowerOnHours
+                    $PowerOnHours = $driveStorage.TotalPowerOnHours
+                    if ($PowerOnHours -eq 0) {$PowerOnHours = $null}
+                    $OutObject | Add-Member -type NoteProperty -name PowerOnHours -value $PowerOnHours
+
 
                     Switch ($driveStorage.OperationalStatus){
                         2 {$driveStatus = "OK";break}
