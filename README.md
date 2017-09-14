@@ -34,6 +34,10 @@
 
   Information about HP tape drives connected to a system through an HP controller
   
+* ##### Get-HPTemperatureSensor
+
+  Temperature status readings from all thermal sensors in a system
+
 #### Usage
 Import module in PowerShell:
 
