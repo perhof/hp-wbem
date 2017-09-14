@@ -881,6 +881,10 @@ function Get-HPTemperatureSensor
     Lists all temperature sensor information on server SRV-HP-A
 
     .EXAMPLE
+    Get-HPTemperatureSensor SRV-HP-A -SensorID 1
+    Lists information for temperature sensor 1 on server SRV-HP-A
+
+    .EXAMPLE
     "SRV-HP-A", "SRV-HP-B", "SRV-HP-C" | Get-HPTemperatureSensor
     Lists tape drive information for three servers
     
