@@ -1,5 +1,9 @@
 # Changelog
 ### History for module hp-wbem.psm1
+### Sep 14, 2017
+  **Get-HPTemperatureSensor**
+  
+  Added new function
 
 ### Dec 14, 2016
   **Get-HPArrayControllers**
