@@ -851,3 +851,105 @@ function Get-HPTapeDrives
         } # end of ShouldProcess
     } # end of Process
 } # end function Get-HPTapeDrives
+
+
+
+function Get-HPTemperatureSensor
+{
+    <#
+    .SYNOPSIS
+    Retrieves temperature sensor readings from HP servers.
+    
+    .DESCRIPTION
+    The Get-HPTemperatureSensor function works through WMI and requires
+    that the HP Insight Management WBEM Providers are installed on
+    the server that is being queried.
+    
+    .PARAMETER Computername
+    The HP server to retrieve information from.
+    This parameter is optional and if the parameter isn't specified
+    the command defaults to local machine.
+    First positional parameter.
+
+    .EXAMPLE
+    Get-HPTemperatureSensor
+    Lists temperature sensor information from all sensor on for the 
+    local machine
+
+    .EXAMPLE
+    Get-HPTemperatureSensor SRV-HP-A
+    Lists all temperature sensor information on server SRV-HP-A
+
+    .EXAMPLE
+    "SRV-HP-A", "SRV-HP-B", "SRV-HP-C" | Get-HPTemperatureSensor
+    Lists tape drive information for three servers
+    
+    #>
+    [CmdletBinding(SupportsShouldProcess=$true)]
+    Param(
+    [Parameter(Mandatory=$false, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true, Position = 1)][string]$Computername=$env:computername,
+    [Parameter(Mandatory=$false, ValueFromPipeline=$false, ValueFromPipelineByPropertyName=$true)][int[]]$SensorID
+    )
+
+    Process{
+
+        if ($SensorID -eq $null ){
+
+            if ($pscmdlet.ShouldProcess("List all temperature sensors information on server " +$Computername)){
+                # retrieve all sensors
+                Try {
+                    $tempsensors = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query "select * from HP_WinNumericSensor" -ErrorAction Stop
+                    ForEach ($tempsensor in $tempsensors){
+                        $OutObject = New-Object System.Object
+                        $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                        $OutObject | Add-Member -type NoteProperty -name ID -value $tempsensor.DeviceID
+                        $OutObject | Add-Member -type NoteProperty -name Status -value $tempsensor.CurrentState
+                        $OutObject | Add-Member -type NoteProperty -name Temp -value $tempsensor.CurrentReading
+                        $OutObject | Add-Member -type NoteProperty -name Threshhold -value $tempsensor.UpperThresholdCritical
+                        $OutObject | Add-Member -type NoteProperty -name Description -value $tempsensor.Description
+                        Write-Output $OutObject
+                    }
+                }
+                Catch
+                {
+                    Write-Warning ("Can't get temperature sensor information for "+$Computername + ". " + $_.Exception.Message)
+                    $OutObject = New-Object System.Object
+                    $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                    Write-Output $OutObject
+                }
+
+            } # end of ShouldProcess
+        }
+        else {
+
+            if ($pscmdlet.ShouldProcess("List selected temperature sensors information on server " +$Computername)){
+                # retrieve specified sensors
+                foreach ($sensor in $SensorID) {
+                    Try {
+                        $tempsensors = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Query "select * from HP_WinNumericSensor where DeviceID ='Temperature Sensor $sensor'" -ErrorAction Stop
+                        ForEach ($tempsensor in $tempsensors){
+                            $OutObject = New-Object System.Object
+                            $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                            $OutObject | Add-Member -type NoteProperty -name ID -value $tempsensor.DeviceID
+                            $OutObject | Add-Member -type NoteProperty -name Description -value $tempsensor.Description
+                            $OutObject | Add-Member -type NoteProperty -name Status -value $tempsensor.CurrentState
+                            $OutObject | Add-Member -type NoteProperty -name Temp -value $tempsensor.CurrentReading
+                            $OutObject | Add-Member -type NoteProperty -name Threshhold -value $tempsensor.UpperThresholdCritical
+                            Write-Output $OutObject
+                        }
+                    }
+                    Catch
+                    {
+                        Write-Warning ("Can't get temperature sensor information for "+$Computername + ". " + $_.Exception.Message)
+                        $OutObject = New-Object System.Object
+                        $OutObject | Add-Member -type NoteProperty -name ComputerName -value $ComputerName
+                        Write-Output $OutObject
+                    }
+                }
+
+            } # end of ShouldProcess
+                
+        } #end if SensorID
+
+    } # end of Process
+} # end function Get-HPTemperatureSensor
