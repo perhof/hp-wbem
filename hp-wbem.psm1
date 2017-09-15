@@ -13,7 +13,7 @@ Get-HPNetworkAdapters
 Get-HPPowerSupplies
 Get-HPSystemInformation
 Get-HPTapeDrives
-
+Get-HPTemperatureSensor
 #>
 
 
