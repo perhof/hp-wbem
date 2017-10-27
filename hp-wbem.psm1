@@ -700,7 +700,7 @@ function Get-HPSystemInformation
 
             Try
             {
-                $Processors = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HP_Processor -ErrorAction Stop
+                $Processors = Get-WmiObject -Computername $ComputerName -Namespace root\cimv2 -Class Win32_Processor -ErrorAction Stop
                 $PowerSupplies = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HP_WinPowerRedundancySet -ErrorAction Stop
                 $PowerSupplySlots = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HP_PowerSupplySlot -ErrorAction Stop
                 $SystemRom = Get-WmiObject -Computername $ComputerName -Namespace root\hpq -Class HP_SystemROMFirmware -ErrorAction Stop | Where-Object {$_.instanceID -match '001'}
@@ -715,7 +715,7 @@ function Get-HPSystemInformation
                     
                     $ProcessorCount = ($Processors | Measure-Object).Count
                     $OutObject | Add-Member -type NoteProperty -name NoOfProcessors -value $ProcessorCount
-                    $ProcessorModel = $Processors | Select-Object -ExpandProperty Description -Unique
+                    $ProcessorModel = $Processors | Select-Object -ExpandProperty Name -Unique
                     $OutObject | Add-Member -type NoteProperty -name ProcessorModel -value $ProcessorModel
                     
                     $PsuSlotCount = ($PowerSupplySlots | Measure-Object).Count
