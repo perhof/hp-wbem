@@ -486,6 +486,17 @@ function Get-HPiLOInformation
                         default {$stat = "Unknown"}
                     }
                     $OutObject | Add-Member -type NoteProperty -name NICCondition -value $stat
+                    
+                    Switch ($Mp.ActiveLicense){
+                        1 {$iLOlicense ="None"}
+                        2 {$iLOlicense ="iLO Advanced"}
+                        3 {$iLOlicense ="iLO Light"}
+                        4 {$iLOlicense ="iLO Advanced for BladeSystem"}
+                        5 {$iLOlicense ="iLO Standard for BladeSystem"}
+                        default {$iLOlicense ="Unknown"}
+                    }
+                    $OutObject | Add-Member -type NoteProperty -name License -value $iLOlicense
+
                     $OutObject | Add-Member -type NoteProperty -name FirmwareVersion -value $fw.VersionString
                     $OutObject | Add-Member -type NoteProperty -name ReleaseDate -value ($fw.ConvertToDateTime($fw.ReleaseDate))
 
