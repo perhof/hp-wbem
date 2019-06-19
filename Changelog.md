@@ -1,5 +1,13 @@
 # Changelog
-### History for module hp-wbem.psm1
+## History for module manifest file hp-wbem.psd1
+
+### July 19, 2019
+
+Generated manifest file
+
+
+## History for module hp-wbem.psm1
+
 ### Sep 14, 2017
   **Get-HPTemperatureSensor**
   
