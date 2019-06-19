@@ -1,7 +1,7 @@
 # Changelog
 ## History for module manifest file hp-wbem.psd1
 
-### July 19, 2019
+### June 19, 2019
 
 Generated manifest file
 
